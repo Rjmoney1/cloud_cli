@@ -110,7 +110,7 @@ while (true) {
         ob_flush(); flush();
 
     } catch (Exception $e) {
-        echo "data: " . json_encode(['error' => $e->getMessage()]) . "\n\n";
+        echo "data: " . json_encode(['error' => 'Server error occurred while streaming stats.']) . "\n\n";
         ob_flush(); flush();
     }
 

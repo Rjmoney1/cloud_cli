@@ -37,6 +37,12 @@ CREATE TABLE IF NOT EXISTS `users` (
   `gpu_limit` INT DEFAULT 0,
   `ssh_private_key` TEXT DEFAULT NULL,
   `ssh_public_key` TEXT DEFAULT NULL,
+  `failed_login_attempts` INT DEFAULT 0,
+  `lockout_until` TIMESTAMP NULL DEFAULT NULL,
+  `email_verified` TINYINT(1) DEFAULT 0,
+  `verification_token` VARCHAR(100) DEFAULT NULL,
+  `mfa_secret` VARCHAR(100) DEFAULT NULL,
+  `mfa_enabled` TINYINT(1) DEFAULT 0,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -59,10 +65,41 @@ CREATE TABLE IF NOT EXISTS `mounts` (
   FOREIGN KEY (`iso_id`) REFERENCES `isos`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Audit Logs Table
+CREATE TABLE IF NOT EXISTS `audit_logs` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT DEFAULT NULL,
+  `username` VARCHAR(50) DEFAULT NULL,
+  `action` VARCHAR(100) NOT NULL,
+  `ip_address` VARCHAR(45) DEFAULT NULL,
+  `details` TEXT DEFAULT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Refresh Tokens Table
+CREATE TABLE IF NOT EXISTS `refresh_tokens` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT NOT NULL,
+  `token` VARCHAR(255) NOT NULL UNIQUE,
+  `expires_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Rate Limits Table
+CREATE TABLE IF NOT EXISTS `rate_limits` (
+  `ip_address` VARCHAR(45) NOT NULL,
+  `endpoint` VARCHAR(100) NOT NULL,
+  `requests` INT DEFAULT 1,
+  `reset_time` TIMESTAMP NOT NULL,
+  PRIMARY KEY (`ip_address`, `endpoint`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- Seed default accounts
 -- Admin: admin / admin123 -> $2y$10$ZkqTLZR/JOfFR5UdfCx/o.93RxNMYdTfNIAANKXvuXjbFVg6ozJVu
 -- User:  testuser / testuser123 -> $2y$10$mAEM4H8g6j7yogdERrTSbe3t8OL7HAhUQS4f7PaDT/FX.kIT/91FC
-INSERT INTO `users` (`username`, `email`, `password`, `role`, `lab_type`, `container_status`) VALUES
-('admin', 'admin@linuxlab.local', '$2y$10$ZkqTLZR/JOfFR5UdfCx/o.93RxNMYdTfNIAANKXvuXjbFVg6ozJVu', 'admin', 'Ubuntu 22.04 LTS', 'stopped'),
-('testuser', 'testuser@linuxlab.local', '$2y$10$mAEM4H8g6j7yogdERrTSbe3t8OL7HAhUQS4f7PaDT/FX.kIT/91FC', 'user', 'Ubuntu 22.04 LTS', 'stopped')
+INSERT INTO `users` (`username`, `email`, `password`, `role`, `lab_type`, `container_status`, `email_verified`) VALUES
+('admin', 'admin@linuxlab.local', '$2y$10$ZkqTLZR/JOfFR5UdfCx/o.93RxNMYdTfNIAANKXvuXjbFVg6ozJVu', 'admin', 'Ubuntu 22.04 LTS', 'stopped', 1),
+('testuser', 'testuser@linuxlab.local', '$2y$10$mAEM4H8g6j7yogdERrTSbe3t8OL7HAhUQS4f7PaDT/FX.kIT/91FC', 'user', 'Ubuntu 22.04 LTS', 'stopped', 1)
 ON DUPLICATE KEY UPDATE `password`=VALUES(`password`);
+

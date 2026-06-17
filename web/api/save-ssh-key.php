@@ -12,6 +12,28 @@ if (!isset($_SESSION['student_user_id'])) {
     exit();
 }
 
+// 1. Enforce Rate Limiting
+if (!check_rate_limit($pdo, 'save_ssh_key', 10, 60)) {
+    echo json_encode(['success' => false, 'message' => 'Rate limit exceeded. Please wait a minute.']);
+    exit();
+}
+
+// 2. Validate CSRF (Skip if Bearer Token authentication is used)
+$authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
+if (empty($authHeader) && function_exists('getallheaders')) {
+    $headers = getallheaders();
+    $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
+}
+$isTokenAuth = !empty($authHeader) && preg_match('/Bearer\s/i', $authHeader);
+
+if (!$isTokenAuth && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $csrfToken = $_POST['csrf_token'] ?? $_GET['csrf_token'] ?? '';
+    if (!verify_csrf_token($csrfToken)) {
+        echo json_encode(['success' => false, 'message' => 'CSRF validation failed.']);
+        exit();
+    }
+}
+
 $userId = $_SESSION['student_user_id'];
 $username = $_SESSION['student_username'];
 $action = $_POST['action'] ?? '';
@@ -37,6 +59,8 @@ if ($action === 'reset') {
         $updateStmt = $pdo->prepare("UPDATE users SET ssh_private_key = ?, ssh_public_key = ? WHERE id = ?");
         $updateStmt->execute([$privateKey, $publicKey, $userId]);
 
+        log_audit($pdo, 'SSH_KEY_RESET', "Generated and updated default SSH key pair.", $userId, $username);
+
         // Push to container if running
         $stmt = $pdo->prepare("SELECT container_id, container_status FROM users WHERE id = ?");
         $stmt->execute([$userId]);
@@ -56,7 +80,7 @@ if ($action === 'reset') {
         echo json_encode(['success' => true, 'message' => 'Default SSH key pair generated and updated successfully.']);
         exit();
     } catch (Exception $e) {
-        echo json_encode(['success' => false, 'message' => 'Server error: ' . $e->getMessage()]);
+        echo json_encode(['success' => false, 'message' => 'Server error occurred during key generation.']);
         exit();
     }
 }
@@ -93,6 +117,8 @@ try {
     $updateStmt = $pdo->prepare("UPDATE users SET ssh_public_key = ?, ssh_private_key = NULL WHERE id = ?");
     $updateStmt->execute([$publicKey, $userId]);
 
+    log_audit($pdo, 'SSH_KEY_UPLOAD', "Uploaded custom SSH public key.", $userId, $username);
+
     // 3. Push to container if running
     if ($user && $user['container_status'] === 'running' && !empty($user['container_id'])) {
         require_once __DIR__ . '/../includes/DockerClient.php';
@@ -110,7 +136,8 @@ try {
     exit();
 
 } catch (Exception $e) {
-    echo json_encode(['success' => false, 'message' => 'Server error: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'message' => 'Server error occurred during key upload.']);
+    exit();
     exit();
 }
 ?>

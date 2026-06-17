@@ -234,6 +234,7 @@ $mounts = $mountsStmt->fetchAll();
                     <p class="text-sm text-zinc-400 mb-6">Install packages remotely (using <code class="font-mono text-zinc-300">apt-get install</code>) into running user containers.</p>
                     
                     <form id="form-install" onsubmit="executeAdminAction(event, 'install_software')" class="space-y-4">
+                        <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
                         <div>
                             <label for="install_user" class="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">Target Student Container</label>
                             <select id="install_user" name="user_id" required class="w-full px-4 py-3 bg-zinc-950 border border-zinc-800 rounded-xl text-white focus:outline-none focus:border-brand transition">
@@ -266,6 +267,7 @@ $mounts = $mountsStmt->fetchAll();
                     <p class="text-sm text-zinc-400 mb-6">Run custom Bash/Shell scripts directly inside a student's active container.</p>
                     
                     <form id="form-script" onsubmit="executeAdminAction(event, 'run_script')" class="space-y-4">
+                        <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
                         <div>
                             <label for="script_user" class="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">Target Student Container</label>
                             <select id="script_user" name="user_id" required class="w-full px-4 py-3 bg-zinc-950 border border-zinc-800 rounded-xl text-white focus:outline-none focus:border-brand transition">
@@ -314,6 +316,7 @@ $mounts = $mountsStmt->fetchAll();
                     <h3 class="font-bold text-white text-sm uppercase tracking-wider text-brand">Upload ISO Image</h3>
                     
                     <form action="api/admin-action.php?action=upload_iso" method="POST" enctype="multipart/form-data" class="space-y-4">
+                        <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
                         <div class="border border-dashed border-zinc-800 hover:border-brand/40 rounded-xl p-4 text-center cursor-pointer transition flex flex-col items-center justify-center bg-zinc-950/20">
                             <i class="fa-solid fa-cloud-arrow-up text-zinc-600 text-3xl mb-2"></i>
                             <input type="file" name="iso_file" required accept=".iso" class="text-xs text-zinc-400 w-full">
@@ -329,6 +332,7 @@ $mounts = $mountsStmt->fetchAll();
                     <h3 class="font-bold text-white text-sm uppercase tracking-wider text-brand">Mount ISO to Container</h3>
                     
                     <form id="form-mount" onsubmit="executeAdminAction(event, 'mount_iso')" class="space-y-4">
+                        <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
                         <div>
                             <label class="block text-xs text-zinc-400 font-semibold mb-1">Target Student</label>
                             <select name="user_id" required class="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-white focus:outline-none focus:border-brand transition">
@@ -397,6 +401,7 @@ $mounts = $mountsStmt->fetchAll();
                     <h3 class="font-bold text-white text-sm uppercase tracking-wider text-brand">Register New Service</h3>
                     
                     <form id="form-add-service" onsubmit="executeAdminAction(event, 'add_service')" class="space-y-4">
+                        <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
                         <div>
                             <label class="block text-xs text-zinc-400 font-semibold mb-1">Service Display Name</label>
                             <input type="text" name="name" required placeholder="e.g. Python 3.10 Web Server" 
@@ -493,7 +498,7 @@ $mounts = $mountsStmt->fetchAll();
             badge.className = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border bg-amber-950/20 border-brand/20 text-brand";
             badge.innerHTML = `<span class="h-1.5 w-1.5 rounded-full bg-brand animate-ping"></span> ${action === 'start' ? 'Starting...' : action === 'stop' ? 'Stopping...' : 'Restarting...'}`;
 
-            fetch(`api/container.php?action=${action}&user_id=${userId}`)
+            fetch(`api/container.php?action=${action}&user_id=${userId}&csrf_token=<?= csrf_token() ?>`)
                 .then(res => res.json())
                 .then(data => {
                     if (data.success) {
@@ -559,7 +564,7 @@ $mounts = $mountsStmt->fetchAll();
             fetch(`api/admin-action.php?action=unmount_iso`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: `mount_id=${mountId}`
+                body: `mount_id=${mountId}&csrf_token=<?= csrf_token() ?>`
             })
             .then(res => res.json())
             .then(data => {
@@ -702,7 +707,7 @@ $mounts = $mountsStmt->fetchAll();
             fetch('api/admin-action.php?action=delete_service', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: `service_id=${serviceId}`
+                body: `service_id=${serviceId}&csrf_token=<?= csrf_token() ?>`
             })
             .then(res => res.json())
             .then(data => {
@@ -731,6 +736,7 @@ $mounts = $mountsStmt->fetchAll();
             </div>
             
             <form id="form-limits" onsubmit="submitLimitsForm(event)" class="space-y-4">
+                <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
                 <input type="hidden" id="limits-user-id" name="user_id">
                 
                 <div>

@@ -61,12 +61,14 @@ class DockerClient {
         // Convert PHP $2y$ blowfish prefix to Linux PAM compatible $2a$ prefix
         $linuxHash = str_replace('$2y$', '$2a$', $passwordHash);
 
+        $isPrivileged = ($image === 'lab-docker');
+
         $hostConfig = [
             'Binds' => [
                 "$volumeName:/home/$username",
                 "/var/lib/linux-lab/isos:/media/isos:ro"
             ],
-            'Privileged' => true,
+            'Privileged' => $isPrivileged,
             'NetworkMode' => 'linux-lab-net'
         ];
 

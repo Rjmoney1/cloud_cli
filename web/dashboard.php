@@ -17,11 +17,21 @@ $labType = $_SESSION['student_lab_type'];
 $docker = new DockerClient();
 
 // Fetch current user details from DB to get the latest status
-$stmt = $pdo->prepare("SELECT container_status, container_id, ssh_private_key, ssh_public_key FROM users WHERE id = ?");
+$stmt = $pdo->prepare("SELECT container_status, container_id, ssh_private_key, ssh_public_key, mfa_secret, mfa_enabled FROM users WHERE id = ?");
 $stmt->execute([$userId]);
 $user = $stmt->fetch();
 $containerStatus = $user['container_status'] ?? 'stopped';
 $containerId = $user['container_id'] ?? '';
+$mfaEnabled = intval($user['mfa_enabled'] ?? 0);
+$mfaSecret = $user['mfa_secret'] ?? '';
+
+// If the user has no MFA secret, generate it dynamically
+if (empty($mfaSecret)) {
+    require_once __DIR__ . '/includes/TOTP.php';
+    $mfaSecret = TOTP::generateSecret();
+    $updateSecret = $pdo->prepare("UPDATE users SET mfa_secret = ? WHERE id = ?");
+    $updateSecret->execute([$mfaSecret, $userId]);
+}
 
 // Check and generate SSH keys dynamically if missing
 if (empty($user['ssh_private_key'])) {
@@ -260,6 +270,55 @@ if ($containerStatus === 'running' && !empty($containerId)) {
                     </div>
                 </div>
             </div>
+
+            <!-- MFA Card -->
+            <div class="bg-zinc-900/40 backdrop-blur-xl border border-zinc-900 rounded-3xl p-8 flex flex-col justify-between shadow-xl gap-6">
+                <div>
+                    <h3 class="text-xl font-bold text-white mb-2"><i class="fa-solid fa-shield-halved text-brand mr-1"></i> 2FA Security</h3>
+                    <p class="text-sm text-zinc-400 mb-4">Secure your lab access using Time-based One-Time Passwords (TOTP).</p>
+                    
+                    <div class="flex items-center justify-between mb-4 bg-zinc-950/20 border border-zinc-800/40 p-3.5 rounded-xl text-xs">
+                        <span class="text-zinc-400 font-medium">Status:</span>
+                        <?php if ($mfaEnabled): ?>
+                            <span class="px-2.5 py-1 bg-green-950 border border-green-500/20 text-green-400 rounded-full font-bold">Enabled</span>
+                        <?php else: ?>
+                            <span class="px-2.5 py-1 bg-zinc-900 border border-zinc-850 text-zinc-400 rounded-full font-bold">Disabled</span>
+                        <?php endif; ?>
+                    </div>
+
+                    <?php if (!$mfaEnabled): ?>
+                        <div class="space-y-4 text-xs">
+                            <p class="text-zinc-500 leading-relaxed font-semibold">1. Enter this Secret Key in Google Authenticator/Authy app:</p>
+                            <div class="bg-zinc-950 border border-zinc-900 rounded-lg p-2.5 font-mono text-zinc-300 text-center select-all">
+                                <span class="font-bold tracking-wider"><?= chunk_split($mfaSecret, 4, ' ') ?></span>
+                            </div>
+                            <p class="text-zinc-500 leading-relaxed font-semibold">2. Verify the 6-digit code to enable 2FA:</p>
+                            <form id="form-mfa-enable" class="space-y-3">
+                                <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
+                                <input type="text" name="mfa_code" placeholder="Enter 6-digit code" required pattern="[0-9]{6}" maxlength="6"
+                                    class="w-full text-center tracking-widest font-mono py-2.5 bg-zinc-950 border border-zinc-850 rounded-xl text-white focus:outline-none focus:border-brand">
+                                <button type="button" onclick="configureMFA('enable')"
+                                    class="w-full py-2.5 px-4 bg-brand hover:bg-brand-600 text-zinc-950 font-bold rounded-xl transition">
+                                    Verify & Enable MFA
+                                </button>
+                            </form>
+                        </div>
+                    <?php else: ?>
+                        <div class="space-y-4 text-xs">
+                            <p class="text-zinc-500 leading-relaxed font-semibold">Enter the 6-digit code to disable 2FA security:</p>
+                            <form id="form-mfa-disable" class="space-y-3">
+                                <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
+                                <input type="text" name="mfa_code" placeholder="Enter 6-digit code" required pattern="[0-9]{6}" maxlength="6"
+                                    class="w-full text-center tracking-widest font-mono py-2.5 bg-zinc-950 border border-zinc-850 rounded-xl text-white focus:outline-none focus:border-brand">
+                                <button type="button" onclick="configureMFA('disable')"
+                                    class="w-full py-2.5 px-4 bg-red-950/20 text-red-400 hover:bg-red-950/40 border border-red-500/20 font-bold rounded-xl transition">
+                                    Disable 2FA Security
+                                </button>
+                            </form>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
             
         </div>
     </main>
@@ -354,7 +413,7 @@ if ($containerStatus === 'running' && !empty($containerId)) {
 
             updateUIState(transitionState);
 
-            fetch(`api/container.php?action=${action}`)
+            fetch(`api/container.php?action=${action}&csrf_token=<?= csrf_token() ?>`)
                 .then(res => res.json())
                 .then(data => {
                     if (data.success) {
@@ -373,6 +432,29 @@ if ($containerStatus === 'running' && !empty($containerId)) {
         }
 
 
+
+        function configureMFA(action) {
+            const form = document.getElementById(`form-mfa-${action}`);
+            const formData = new FormData(form);
+            
+            fetch(`api/auth-mfa.php?action=${action}`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    location.reload();
+                } else {
+                    alert("MFA configuration failed: " + data.message);
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                alert("An error occurred during verification.");
+            });
+        }
 
         // Initialize state on page load
         document.addEventListener('DOMContentLoaded', () => {

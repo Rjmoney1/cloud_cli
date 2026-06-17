@@ -18,6 +18,19 @@ if (!$studentUserId && !$adminUserId) {
     exit();
 }
 
+// 1. Validate CSRF Token
+$csrfToken = $_POST['csrf_token'] ?? $_GET['csrf_token'] ?? '';
+if (!verify_csrf_token($csrfToken)) {
+    echo json_encode(['success' => false, 'message' => 'CSRF validation failed.']);
+    exit();
+}
+
+// 2. Enforce Rate Limiting
+if (!check_rate_limit($pdo, 'container_control', 15, 60)) {
+    echo json_encode(['success' => false, 'message' => 'Rate limit exceeded. Please wait a minute.']);
+    exit();
+}
+
 $action = $_GET['action'] ?? '';
 $targetUserId = isset($_GET['user_id']) ? intval($_GET['user_id']) : $studentUserId;
 
@@ -127,6 +140,8 @@ try {
                 $docker->execCommand($containerId, $cmd);
             }
 
+            log_audit($pdo, 'CONTAINER_START', "Container started for user: $username (ID: $targetUserId)", $targetUserId, $username);
+
             echo json_encode([
                 'success' => true, 
                 'message' => 'Container started successfully.',
@@ -150,6 +165,8 @@ try {
         // Update database (even if container is already stopped, to align states)
         $updateStmt = $pdo->prepare("UPDATE users SET container_status = 'stopped' WHERE id = ?");
         $updateStmt->execute([$targetUserId]);
+
+        log_audit($pdo, 'CONTAINER_STOP', "Container stopped for user: $username (ID: $targetUserId)", $targetUserId, $username);
 
         echo json_encode([
             'success' => true,
@@ -181,6 +198,8 @@ try {
                 ];
                 $docker->execCommand($containerId, $cmd);
             }
+
+            log_audit($pdo, 'CONTAINER_RESTART', "Container restarted for user: $username (ID: $targetUserId)", $targetUserId, $username);
 
             echo json_encode([
                 'success' => true,

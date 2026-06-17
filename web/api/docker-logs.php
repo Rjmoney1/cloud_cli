@@ -60,7 +60,7 @@ try {
     }, 50);
 
 } catch (Exception $e) {
-    echo "data: " . json_encode(['error' => $e->getMessage()]) . "\n\n";
+    echo "data: " . json_encode(['error' => 'Server error occurred while streaming logs.']) . "\n\n";
     ob_flush(); flush();
 }
 ?>

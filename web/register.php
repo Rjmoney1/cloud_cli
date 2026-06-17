@@ -96,6 +96,7 @@ $services = $servicesStmt->fetchAll();
                 <?php endif; ?>
 
                 <form action="api/auth.php?action=register" method="POST" class="space-y-5">
+                    <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label for="username" class="block text-sm font-semibold text-zinc-300 mb-2">Username</label>

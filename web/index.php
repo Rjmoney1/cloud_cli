@@ -1,9 +1,27 @@
 <?php
-session_start();
-if (isset($_SESSION['admin_user_id']) && isset($_SESSION['student_user_id'])) {
-    header("Location: admin.php");
+require_once __DIR__ . '/includes/db.php';
+
+// If user cancels MFA verification, reset MFA session state
+if (isset($_GET['cancel_mfa'])) {
+    unset($_SESSION['mfa_pending_user_id']);
+    unset($_SESSION['mfa_pending_username']);
+    unset($_SESSION['mfa_pending_role']);
+    unset($_SESSION['mfa_pending_lab_type']);
+    header("Location: index.php");
     exit();
 }
+
+// Redirect if already fully logged in
+if (isset($_SESSION['admin_user_id']) || isset($_SESSION['student_user_id'])) {
+    if (isset($_SESSION['admin_user_id'])) {
+        header("Location: admin.php");
+    } else {
+        header("Location: dashboard.php");
+    }
+    exit();
+}
+
+$isMfaPending = isset($_GET['mfa']) && $_GET['mfa'] == 1 && isset($_SESSION['mfa_pending_user_id']);
 ?>
 <!DOCTYPE html>
 <html lang="en" class="h-full bg-zinc-950">
@@ -64,9 +82,15 @@ if (isset($_SESSION['admin_user_id']) && isset($_SESSION['student_user_id'])) {
             <span class="text-2xl font-bold tracking-tight text-white">Cloud<span class="text-brand">Lab</span></span>
         </div>
         <div>
-            <a href="register.php" class="text-sm font-medium text-zinc-400 hover:text-white transition-colors duration-200">
-                Create an Account <i class="fa-solid fa-arrow-right ml-1"></i>
-            </a>
+            <?php if (!$isMfaPending): ?>
+                <a href="register.php" class="text-sm font-medium text-zinc-400 hover:text-white transition-colors duration-200">
+                    Create an Account <i class="fa-solid fa-arrow-right ml-1"></i>
+                </a>
+            <?php else: ?>
+                <a href="index.php?cancel_mfa=1" class="text-sm font-medium text-zinc-400 hover:text-white transition-colors duration-200">
+                    <i class="fa-solid fa-arrow-left mr-1"></i> Back to Login
+                </a>
+            <?php endif; ?>
         </div>
     </header>
 
@@ -76,39 +100,16 @@ if (isset($_SESSION['admin_user_id']) && isset($_SESSION['student_user_id'])) {
             
             <!-- Welcome text -->
             <div class="text-center mb-8">
-                <h1 class="text-4xl font-bold tracking-tight text-white mb-2">Welcome Back</h1>
-                <p class="text-zinc-400">Launch your isolated personal Linux container instantly</p>
+                <h1 class="text-4xl font-bold tracking-tight text-white mb-2">
+                    <?= $isMfaPending ? "Two-Factor Auth" : "Welcome Back" ?>
+                </h1>
+                <p class="text-zinc-400">
+                    <?= $isMfaPending ? "Enter the 6-digit verification code from your authenticator app" : "Launch your isolated personal Linux container instantly" ?>
+                </p>
             </div>
 
             <!-- Login Card -->
             <div class="bg-zinc-900/60 backdrop-blur-xl border border-zinc-800 rounded-3xl p-8 shadow-2xl">
-                
-                <?php if (isset($_SESSION['admin_user_id']) || isset($_SESSION['student_user_id'])): ?>
-                    <div class="mb-6 bg-zinc-950/40 border border-zinc-800/80 text-zinc-300 rounded-xl p-4 text-sm flex flex-col gap-3">
-                        <div class="flex items-center gap-2 text-zinc-400 font-semibold">
-                            <i class="fa-solid fa-circle-info text-brand"></i>
-                            <span>Active Sessions Detected</span>
-                        </div>
-                        <div class="flex flex-col gap-2">
-                            <?php if (isset($_SESSION['admin_user_id'])): ?>
-                                <div class="flex justify-between items-center bg-zinc-900/60 border border-zinc-800/40 px-3 py-2.5 rounded-lg">
-                                    <span class="text-zinc-400 text-xs">Logged in as Admin: <strong class="text-white font-medium"><?= htmlspecialchars($_SESSION['admin_username']) ?></strong></span>
-                                    <a href="admin.php" class="text-brand hover:text-brand-400 font-semibold text-xs flex items-center gap-1 transition-colors">
-                                        Admin Panel <i class="fa-solid fa-arrow-right-long text-[10px]"></i>
-                                    </a>
-                                </div>
-                            <?php endif; ?>
-                            <?php if (isset($_SESSION['student_user_id'])): ?>
-                                <div class="flex justify-between items-center bg-zinc-900/60 border border-zinc-800/40 px-3 py-2.5 rounded-lg">
-                                    <span class="text-zinc-400 text-xs">Logged in as Student: <strong class="text-white font-medium"><?= htmlspecialchars($_SESSION['student_username']) ?></strong></span>
-                                    <a href="dashboard.php" class="text-brand hover:text-brand-400 font-semibold text-xs flex items-center gap-1 transition-colors">
-                                        Dashboard <i class="fa-solid fa-arrow-right-long text-[10px]"></i>
-                                    </a>
-                                </div>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                <?php endif; ?>
 
                 <?php if (isset($_SESSION['error'])): ?>
                     <div class="mb-6 bg-red-950/40 border border-red-500/30 text-red-400 rounded-xl p-4 text-sm flex gap-3 items-start">
@@ -125,49 +126,84 @@ if (isset($_SESSION['admin_user_id']) && isset($_SESSION['student_user_id'])) {
                         <i class="fa-solid fa-circle-check mt-0.5"></i>
                         <div>
                             <span class="font-semibold">Success</span>
-                            <p class="mt-0.5 text-green-300/80"><?= htmlspecialchars($_SESSION['success']); unset($_SESSION['success']); ?></p>
+                            <p class="mt-0.5 text-green-300/80"><?= $_SESSION['success']; unset($_SESSION['success']); ?></p>
                         </div>
                     </div>
                 <?php endif; ?>
 
-                <form action="api/auth.php?action=login" method="POST" class="space-y-6">
-                    <div>
-                        <label for="username" class="block text-sm font-semibold text-zinc-300 mb-2">Username</label>
-                        <div class="relative">
-                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-zinc-500">
-                                <i class="fa-solid fa-user"></i>
-                            </span>
-                            <input type="text" id="username" name="username" required
-                                class="block w-full pl-10 pr-4 py-3 bg-zinc-950 border border-zinc-800 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition duration-200"
-                                placeholder="Enter your username">
+                <?php if ($isMfaPending): ?>
+                    <!-- MFA TOTP Verification Form -->
+                    <form action="api/auth.php?action=mfa_verify" method="POST" class="space-y-6">
+                        <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
+                        
+                        <div>
+                            <label for="mfa_code" class="block text-sm font-semibold text-zinc-300 mb-2">Authenticator Code</label>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-zinc-500">
+                                    <i class="fa-solid fa-mobile-screen-button"></i>
+                                </span>
+                                <input type="text" id="mfa_code" name="mfa_code" required autofocus autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6"
+                                    class="block w-full pl-10 pr-4 py-3 bg-zinc-950 border border-zinc-800 rounded-xl text-white placeholder-zinc-650 tracking-widest text-center text-lg font-mono focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition duration-200"
+                                    placeholder="000000">
+                            </div>
                         </div>
-                    </div>
 
-                    <div>
-                        <div class="flex justify-between items-center mb-2">
-                            <label for="password" class="block text-sm font-semibold text-zinc-300">Password</label>
+                        <button type="submit"
+                            class="w-full py-3 px-4 bg-brand hover:bg-brand-600 active:bg-brand-700 text-zinc-950 font-bold rounded-xl shadow-lg shadow-brand/20 hover:shadow-brand/35 transition-all duration-200 transform active:scale-[0.98]">
+                            Verify & Login <i class="fa-solid fa-shield-check ml-2"></i>
+                        </button>
+                        
+                        <div class="text-center mt-4">
+                            <a href="index.php?cancel_mfa=1" class="text-xs text-zinc-500 hover:text-zinc-300 transition">
+                                Cancel verification
+                            </a>
                         </div>
-                        <div class="relative">
-                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-zinc-500">
-                                <i class="fa-solid fa-lock"></i>
-                            </span>
-                            <input type="password" id="password" name="password" required
-                                class="block w-full pl-10 pr-4 py-3 bg-zinc-950 border border-zinc-800 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition duration-200"
-                                placeholder="••••••••">
+                    </form>
+                <?php else: ?>
+                    <!-- Standard Login Form -->
+                    <form action="api/auth.php?action=login" method="POST" class="space-y-6">
+                        <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
+                        
+                        <div>
+                            <label for="username" class="block text-sm font-semibold text-zinc-300 mb-2">Username</label>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-zinc-500">
+                                    <i class="fa-solid fa-user"></i>
+                                </span>
+                                <input type="text" id="username" name="username" required
+                                    class="block w-full pl-10 pr-4 py-3 bg-zinc-950 border border-zinc-800 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition duration-200"
+                                    placeholder="Enter your username">
+                            </div>
                         </div>
-                    </div>
 
-                    <button type="submit"
-                        class="w-full py-3 px-4 bg-brand hover:bg-brand-600 active:bg-brand-700 text-zinc-950 font-bold rounded-xl shadow-lg shadow-brand/20 hover:shadow-brand/35 transition-all duration-200 transform active:scale-[0.98]">
-                        Sign In <i class="fa-solid fa-right-to-bracket ml-2"></i>
-                    </button>
-                </form>
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <label for="password" class="block text-sm font-semibold text-zinc-300">Password</label>
+                            </div>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-zinc-500">
+                                    <i class="fa-solid fa-lock"></i>
+                                </span>
+                                <input type="password" id="password" name="password" required
+                                    class="block w-full pl-10 pr-4 py-3 bg-zinc-950 border border-zinc-800 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition duration-200"
+                                    placeholder="••••••••">
+                            </div>
+                        </div>
+
+                        <button type="submit"
+                            class="w-full py-3 px-4 bg-brand hover:bg-brand-600 active:bg-brand-700 text-zinc-950 font-bold rounded-xl shadow-lg shadow-brand/20 hover:shadow-brand/35 transition-all duration-200 transform active:scale-[0.98]">
+                            Sign In <i class="fa-solid fa-right-to-bracket ml-2"></i>
+                        </button>
+                    </form>
+                <?php endif; ?>
             </div>
 
             <!-- Footer indicator -->
-            <p class="text-center mt-6 text-sm text-zinc-500">
-                Don't have an account? <a href="register.php" class="text-brand hover:underline font-medium">Create one now</a>
-            </p>
+            <?php if (!$isMfaPending): ?>
+                <p class="text-center mt-6 text-sm text-zinc-500">
+                    Don't have an account? <a href="register.php" class="text-brand hover:underline font-medium">Create one now</a>
+                </p>
+            <?php endif; ?>
         </div>
     </main>
 

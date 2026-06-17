@@ -32,6 +32,6 @@ try {
 
 } catch (Exception $e) {
     http_response_code(500);
-    exit("Server error: " . $e->getMessage());
+    exit("Server error occurred.");
 }
 ?>
