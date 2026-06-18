@@ -69,6 +69,57 @@ try {
         $image = 'lab-ubuntu'; // Default fallback
     }
 
+    if ($action === 'deploy') {
+        $newLabType = trim($_GET['lab_type'] ?? $_POST['lab_type'] ?? '');
+        if (empty($newLabType)) {
+            echo json_encode(['success' => false, 'message' => 'Lab type is required.']);
+            exit();
+        }
+
+        // Fetch image dynamically to verify it exists
+        $serviceStmt = $pdo->prepare("SELECT image_name FROM services WHERE name = ?");
+        $serviceStmt->execute([$newLabType]);
+        $image = $serviceStmt->fetchColumn();
+
+        if (!$image) {
+            echo json_encode(['success' => false, 'message' => 'Invalid lab environment selected.']);
+            exit();
+        }
+
+        // 1. If container ID exists in DB, stop and remove it
+        if (!empty($containerId)) {
+            $docker->stopContainer($containerId);
+            $docker->removeContainer($containerId);
+        } else {
+            // Also check for orphan container with the name to be safe
+            $containers = $docker->listContainers(true);
+            foreach ($containers as $c) {
+                if (in_array("/" . $containerName, $c['Names'])) {
+                    $docker->removeContainer($c['Id']);
+                    break;
+                }
+            }
+        }
+
+        // 2. Update DB with new lab_type, reset container details
+        $updateStmt = $pdo->prepare("UPDATE users SET lab_type = ?, container_id = NULL, container_status = 'stopped' WHERE id = ?");
+        $updateStmt->execute([$newLabType, $targetUserId]);
+
+        // 3. Update session if it's the logged-in student
+        if ($targetUserId === $studentUserId) {
+            $_SESSION['student_lab_type'] = $newLabType;
+        }
+
+        log_audit($pdo, 'LAB_DEPLOY', "Deployed new lab: $newLabType", $targetUserId, $username);
+
+        // 4. Update local variables so that they point to the newly deployed lab
+        $labType = $newLabType;
+        $containerId = null;
+        
+        // 5. Fall through to the 'start' action logic to automatically boot it up!
+        $action = 'start';
+    }
+
     if ($action === 'start') {
         $started = false;
         

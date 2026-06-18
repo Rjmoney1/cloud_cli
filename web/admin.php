@@ -91,6 +91,10 @@ $mounts = $mountsStmt->fetchAll();
         .terminal-bg {
             background-color: #050506;
         }
+        .card-detail { max-height: 0; overflow: hidden; transition: max-height 0.35s ease; }
+        .card-detail.expanded { max-height: 500px; }
+        .chevron-rotate { transition: transform 0.3s ease; }
+        .chevron-rotate.rotated { transform: rotate(180deg); }
     </style>
 </head>
 <body class="min-h-full font-sans text-zinc-100 gradient-bg flex flex-col justify-between">
@@ -151,77 +155,141 @@ $mounts = $mountsStmt->fetchAll();
             </div>
         <?php endif; ?>
 
-        <!-- Active Users & Container Management Table -->
-        <section class="bg-zinc-900/20 border border-zinc-900 rounded-3xl p-6 shadow-xl">
-            <h2 class="text-xl font-bold text-white mb-4"><i class="fa-solid fa-users text-brand mr-2"></i> Registered Students & Labs</h2>
-            
-            <div class="overflow-x-auto">
-                <table class="w-full text-left text-sm text-zinc-400 border-collapse">
-                    <thead>
-                        <tr class="border-b border-zinc-800 text-zinc-300 font-semibold bg-zinc-950/20">
-                            <th class="py-3 px-4">Student</th>
-                            <th class="py-3 px-4">Lab Environment</th>
-                            <th class="py-3 px-4">Resource Limits</th>
-                            <th class="py-3 px-4">Container Name</th>
-                            <th class="py-3 px-4">Docker Status</th>
-                            <th class="py-3 px-4 text-right">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if (empty($users)): ?>
-                            <tr>
-                                <td colspan="6" class="py-8 text-center text-zinc-500">No registered students found in the database.</td>
-                            </tr>
-                        <?php else: ?>
-                            <?php foreach ($users as $user): ?>
-                                <tr class="border-b border-zinc-900 hover:bg-zinc-900/10 transition-colors">
-                                    <td class="py-4 px-4 font-semibold text-white">
-                                        <?= htmlspecialchars($user['username']) ?>
-                                        <span class="block text-xs text-zinc-500 font-normal"><?= htmlspecialchars($user['email']) ?></span>
-                                    </td>
-                                    <td class="py-4 px-4">
-                                        <span class="font-semibold text-zinc-300"><?= htmlspecialchars($user['lab_type']) ?></span>
-                                    </td>
-                                    <td class="py-4 px-4">
-                                        <span class="block text-xs text-zinc-300">CPU: <strong class="text-white"><?= floatval($user['cpu_limit'] ?? 1.0) ?> Cores</strong></span>
-                                        <span class="block text-xs text-zinc-300">RAM: <strong class="text-white"><?= intval($user['memory_limit'] ?? 1024) ?> MB</strong></span>
-                                        <span class="block text-xs text-zinc-300">GPU: <strong class="text-white"><?= intval($user['gpu_limit'] ?? 0) === -1 ? 'All' : intval($user['gpu_limit'] ?? 0) ?></strong></span>
-                                    </td>
-                                    <td class="py-4 px-4 font-mono text-xs text-zinc-500">
-                                        <?= !empty($user['container_id']) ? 'lab-' . htmlspecialchars($user['username']) : '-' ?>
-                                    </td>
-                                    <td class="py-4 px-4">
-                                        <div id="status-badge-<?= $user['id'] ?>" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border <?= $user['container_status'] === 'running' ? 'bg-green-950/30 border-green-500/20 text-green-400' : 'bg-zinc-900 border-zinc-800 text-zinc-500' ?>">
-                                            <span class="h-1.5 w-1.5 rounded-full <?= $user['container_status'] === 'running' ? 'bg-green-500 animate-pulse' : 'bg-zinc-600' ?>"></span>
-                                            <?= htmlspecialchars($user['container_status']) ?>
-                                        </div>
-                                    </td>
-                                    <td class="py-4 px-4 text-right">
-                                        <div class="flex justify-end gap-2">
-                                            <button onclick="openLimitsModal(<?= $user['id'] ?>, '<?= htmlspecialchars($user['username']) ?>', <?= floatval($user['cpu_limit'] ?? 1.0) ?>, <?= intval($user['memory_limit'] ?? 1024) ?>, <?= intval($user['gpu_limit'] ?? 0) ?>, '<?= htmlspecialchars($user['lab_type']) ?>')"
-                                                class="px-2.5 py-1.5 bg-zinc-905 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white text-xs font-semibold rounded-lg transition" title="Set Resource Limits">
-                                                <i class="fa-solid fa-sliders mr-1 text-brand"></i> Limits & Env
-                                            </button>
-                                            <button onclick="controlUserContainer(<?= $user['id'] ?>, 'start')"
-                                                class="px-3 py-1.5 bg-green-950 hover:bg-green-900 border border-green-500/20 text-green-400 text-xs font-semibold rounded-lg transition">
-                                                Start
-                                            </button>
-                                            <button onclick="controlUserContainer(<?= $user['id'] ?>, 'stop')"
-                                                class="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-xs font-semibold rounded-lg transition">
-                                                Stop
-                                            </button>
-                                            <button onclick="controlUserContainer(<?= $user['id'] ?>, 'restart')"
-                                                class="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-xs font-semibold rounded-lg transition">
-                                                Restart
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
+        <!-- Active Users & Container Management Cards -->
+        <?php
+            $activeLabs = 0;
+            $totalCpu = 0;
+            $totalRam = 0;
+            foreach ($users as $u) {
+                if ($u['container_status'] === 'running') $activeLabs++;
+                $totalCpu += floatval($u['cpu_limit'] ?? 1.0);
+                $totalRam += intval($u['memory_limit'] ?? 1024);
+            }
+        ?>
+        <section class="space-y-6">
+            <h2 class="text-xl font-bold text-white"><i class="fa-solid fa-users text-brand mr-2"></i> Registered Students & Labs</h2>
+
+            <!-- Summary Header Bar -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-4 flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-brand/10 flex items-center justify-center text-brand"><i class="fa-solid fa-user-group"></i></div>
+                    <div>
+                        <p class="text-2xl font-bold text-white"><?= count($users) ?></p>
+                        <p class="text-xs text-zinc-500">Total Users</p>
+                    </div>
+                </div>
+                <div class="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-4 flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center text-green-400"><i class="fa-solid fa-play"></i></div>
+                    <div>
+                        <p class="text-2xl font-bold text-white"><?= $activeLabs ?></p>
+                        <p class="text-xs text-zinc-500">Active Labs</p>
+                    </div>
+                </div>
+                <div class="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-4 flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400"><i class="fa-solid fa-microchip"></i></div>
+                    <div>
+                        <p class="text-2xl font-bold text-white"><?= $totalCpu ?></p>
+                        <p class="text-xs text-zinc-500">CPU Allocated</p>
+                    </div>
+                </div>
+                <div class="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-4 flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-400"><i class="fa-solid fa-memory"></i></div>
+                    <div>
+                        <p class="text-2xl font-bold text-white"><?= number_format($totalRam) ?> MB</p>
+                        <p class="text-xs text-zinc-500">RAM Allocated</p>
+                    </div>
+                </div>
             </div>
+
+            <!-- User Cards Grid -->
+            <?php if (empty($users)): ?>
+                <div class="bg-zinc-900/20 border border-zinc-900 rounded-3xl p-10 text-center text-zinc-500">No registered students found in the database.</div>
+            <?php else: ?>
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                <?php foreach ($users as $user):
+                    $isRunning = $user['container_status'] === 'running';
+                    $cpuVal = floatval($user['cpu_limit'] ?? 1.0);
+                    $ramVal = intval($user['memory_limit'] ?? 1024);
+                    $gpuVal = intval($user['gpu_limit'] ?? 0);
+                    $gpuDisplay = $gpuVal === -1 ? 'All' : $gpuVal;
+                ?>
+                <div class="bg-zinc-900/30 border <?= $isRunning ? 'border-green-500/20 shadow-lg shadow-green-950/10' : 'border-zinc-900' ?> rounded-2xl overflow-hidden transition-all duration-300 hover:border-zinc-700">
+                    <!-- Card Header (clickable) -->
+                    <button onclick="toggleUserCard(<?= $user['id'] ?>)" class="w-full text-left px-5 py-4 flex items-center justify-between gap-3 group">
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2.5 mb-1">
+                                <h3 class="text-white font-semibold truncate"><?= htmlspecialchars($user['username']) ?></h3>
+                                <span class="shrink-0 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-brand/10 text-brand border border-brand/20"><?= htmlspecialchars($user['lab_type']) ?></span>
+                            </div>
+                            <p class="text-xs text-zinc-500 truncate"><?= htmlspecialchars($user['email']) ?></p>
+                        </div>
+                        <div class="flex items-center gap-3 shrink-0">
+                            <div id="status-badge-<?= $user['id'] ?>" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border <?= $isRunning ? 'bg-green-950/30 border-green-500/20 text-green-400' : 'bg-zinc-900 border-zinc-800 text-zinc-500' ?>">
+                                <span class="h-1.5 w-1.5 rounded-full <?= $isRunning ? 'bg-green-500 animate-pulse' : 'bg-zinc-600' ?>"></span>
+                                <?= $isRunning ? 'Running' : 'Stopped' ?>
+                            </div>
+                            <i id="chevron-<?= $user['id'] ?>" class="fa-solid fa-chevron-down text-xs text-zinc-600 group-hover:text-zinc-400 chevron-rotate transition-colors"></i>
+                        </div>
+                    </button>
+
+                    <!-- Container name bar -->
+                    <div class="px-5 pb-3 -mt-1">
+                        <span class="font-mono text-[11px] text-zinc-600"><?= !empty($user['container_id']) ? 'lab-' . htmlspecialchars($user['username']) : 'No container' ?></span>
+                    </div>
+
+                    <!-- Expandable Detail Panel -->
+                    <div id="user-detail-<?= $user['id'] ?>" class="card-detail">
+                        <div class="border-t border-zinc-800/60 px-5 py-4 space-y-4">
+                            <!-- Resource Limits -->
+                            <div>
+                                <p class="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Resource Limits</p>
+                                <div class="grid grid-cols-3 gap-2">
+                                    <div class="bg-zinc-950/60 border border-zinc-800 rounded-xl p-3 text-center">
+                                        <i class="fa-solid fa-microchip text-blue-400 text-xs mb-1"></i>
+                                        <p class="text-sm font-bold text-white"><?= $cpuVal ?></p>
+                                        <p class="text-[10px] text-zinc-500">CPU Cores</p>
+                                    </div>
+                                    <div class="bg-zinc-950/60 border border-zinc-800 rounded-xl p-3 text-center">
+                                        <i class="fa-solid fa-memory text-purple-400 text-xs mb-1"></i>
+                                        <p class="text-sm font-bold text-white"><?= $ramVal ?></p>
+                                        <p class="text-[10px] text-zinc-500">RAM MB</p>
+                                    </div>
+                                    <div class="bg-zinc-950/60 border border-zinc-800 rounded-xl p-3 text-center">
+                                        <i class="fa-solid fa-gpu-card text-amber-400 text-xs mb-1"></i>
+                                        <p class="text-sm font-bold text-white"><?= $gpuDisplay ?></p>
+                                        <p class="text-[10px] text-zinc-500">GPU</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Quick Actions -->
+                            <div>
+                                <p class="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Quick Actions</p>
+                                <div class="flex flex-wrap gap-2">
+                                    <button onclick="event.stopPropagation(); controlUserContainer(<?= $user['id'] ?>, 'start')"
+                                        class="px-3 py-1.5 bg-green-950 hover:bg-green-900 border border-green-500/20 text-green-400 text-xs font-semibold rounded-lg transition">
+                                        <i class="fa-solid fa-play mr-1"></i> Start
+                                    </button>
+                                    <button onclick="event.stopPropagation(); controlUserContainer(<?= $user['id'] ?>, 'stop')"
+                                        class="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-xs font-semibold rounded-lg transition">
+                                        <i class="fa-solid fa-stop mr-1"></i> Stop
+                                    </button>
+                                    <button onclick="event.stopPropagation(); controlUserContainer(<?= $user['id'] ?>, 'restart')"
+                                        class="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-xs font-semibold rounded-lg transition">
+                                        <i class="fa-solid fa-rotate-right mr-1"></i> Restart
+                                    </button>
+                                    <button onclick="event.stopPropagation(); openLimitsModal(<?= $user['id'] ?>, '<?= htmlspecialchars($user['username']) ?>', <?= $cpuVal ?>, <?= $ramVal ?>, <?= $gpuVal ?>, '<?= htmlspecialchars($user['lab_type']) ?>')"
+                                        class="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white text-xs font-semibold rounded-lg transition">
+                                        <i class="fa-solid fa-sliders mr-1 text-brand"></i> Edit Limits
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
         </section>
 
         <!-- Command Execution & Software Installation Console -->
@@ -722,6 +790,18 @@ $mounts = $mountsStmt->fetchAll();
                 console.error(err);
                 alert("Network error occurred.");
             });
+        }
+
+        function toggleUserCard(userId) {
+            const panel = document.getElementById(`user-detail-${userId}`);
+            const chevron = document.getElementById(`chevron-${userId}`);
+            if (panel.classList.contains('expanded')) {
+                panel.classList.remove('expanded');
+                chevron.classList.remove('rotated');
+            } else {
+                panel.classList.add('expanded');
+                chevron.classList.add('rotated');
+            }
         }
     </script>
 

@@ -64,7 +64,10 @@ try {
        PRIMARY KEY (`ip_address`, `endpoint`)
      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
      
-     // 2. Dynamically sync admin password from the environment if changed
+     // 2. Set default accounts to verified (fixes lockout after ALTER TABLE adds email_verified column default 0)
+     $pdo->exec("UPDATE users SET email_verified = 1 WHERE username IN ('admin', 'testuser') AND email_verified = 0");
+     
+     // 3. Dynamically sync admin password from the environment if changed
      $adminPass = getenv('ADMIN_PASSWORD');
      if (!empty($adminPass)) {
          $stmt = $pdo->prepare("SELECT password FROM users WHERE username = 'admin'");

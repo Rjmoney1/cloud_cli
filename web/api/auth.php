@@ -93,17 +93,31 @@ if ($action === 'login') {
                 session_regenerate_id(true);
                 log_audit($pdo, 'LOGIN_SUCCESS', "User logged in successfully: $username", $user['id'], $user['username']);
 
+                // Generate per-tab session token
+                $tabToken = generate_tab_token();
+
                 if ($user['role'] === 'admin') {
                     $_SESSION['admin_user_id'] = $user['id'];
                     $_SESSION['admin_username'] = $user['username'];
                     $_SESSION['admin_role'] = $user['role'];
-                    header("Location: ../admin.php");
+                    set_tab_session($tabToken, [
+                        'user_id' => $user['id'],
+                        'username' => $user['username'],
+                        'role' => 'admin'
+                    ]);
+                    header("Location: ../admin.php?tab_token=" . urlencode($tabToken));
                 } else {
                     $_SESSION['student_user_id'] = $user['id'];
                     $_SESSION['student_username'] = $user['username'];
                     $_SESSION['student_role'] = $user['role'];
                     $_SESSION['student_lab_type'] = $user['lab_type'];
-                    header("Location: ../dashboard.php");
+                    set_tab_session($tabToken, [
+                        'user_id' => $user['id'],
+                        'username' => $user['username'],
+                        'role' => 'user',
+                        'lab_type' => $user['lab_type']
+                    ]);
+                    header("Location: ../dashboard.php?tab_token=" . urlencode($tabToken));
                 }
                 exit();
             } else {
@@ -163,17 +177,31 @@ elseif ($action === 'mfa_verify') {
             session_regenerate_id(true);
             log_audit($pdo, 'LOGIN_MFA_SUCCESS', "MFA verification successful: " . $user['username'], $user['id'], $user['username']);
 
+            // Generate per-tab session token
+            $tabToken = generate_tab_token();
+
             if ($user['role'] === 'admin') {
                 $_SESSION['admin_user_id'] = $user['id'];
                 $_SESSION['admin_username'] = $user['username'];
                 $_SESSION['admin_role'] = $user['role'];
-                header("Location: ../admin.php");
+                set_tab_session($tabToken, [
+                    'user_id' => $user['id'],
+                    'username' => $user['username'],
+                    'role' => 'admin'
+                ]);
+                header("Location: ../admin.php?tab_token=" . urlencode($tabToken));
             } else {
                 $_SESSION['student_user_id'] = $user['id'];
                 $_SESSION['student_username'] = $user['username'];
                 $_SESSION['student_role'] = $user['role'];
                 $_SESSION['student_lab_type'] = $user['lab_type'];
-                header("Location: ../dashboard.php");
+                set_tab_session($tabToken, [
+                    'user_id' => $user['id'],
+                    'username' => $user['username'],
+                    'role' => 'user',
+                    'lab_type' => $user['lab_type']
+                ]);
+                header("Location: ../dashboard.php?tab_token=" . urlencode($tabToken));
             }
             
             // Clear MFA state variables
@@ -226,8 +254,11 @@ elseif ($action === 'register') {
     }
 
     // Enforce Password Complexity (min 8 chars, 1 uppercase, 1 lowercase, 1 digit, 1 special character)
-    $pattern = '/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};\':",.\\\/<>?|`~]).{8,}$/';
-    if (!preg_match($pattern, $password)) {
+    if (strlen($password) < 8 ||
+        !preg_match('/[a-z]/', $password) ||
+        !preg_match('/[A-Z]/', $password) ||
+        !preg_match('/[0-9]/', $password) ||
+        !preg_match('#[!@#$%^&*()_+\-=\[\]{};\':",.\\/<>?|`~]#', $password)) {
         $_SESSION['error'] = "Password must be at least 8 characters long and include at least one uppercase letter, one lowercase letter, one number, and one special character.";
         header("Location: ../register.php");
         exit();

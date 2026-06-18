@@ -8,6 +8,7 @@ class DockerClient {
         curl_setopt($ch, CURLOPT_URL, 'http://localhost' . $path);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, !$stream);
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 10); // Prevent hanging requests
 
         if ($data !== null) {
             $jsonData = json_encode($data);
@@ -112,6 +113,7 @@ class DockerClient {
             ],
             'ExposedPorts' => [
                 '8080/tcp' => new stdClass(),
+                '5678/tcp' => new stdClass(),
                 '22/tcp' => new stdClass()
             ],
             'HostConfig' => $hostConfig

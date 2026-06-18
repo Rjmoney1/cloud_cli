@@ -1,7 +1,7 @@
 FROM ubuntu:22.04
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install common utilities, MySQL Server, openssh-server, and code-server
+# Install common terminal utilities, openssh-server, and Node.js v20
 RUN apt-get update && apt-get install -y \
     curl \
     git \
@@ -14,13 +14,12 @@ RUN apt-get update && apt-get install -y \
     net-tools \
     nano \
     unzip \
-    mysql-server \
     openssh-server \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
     && apt-get clean && rm -rf /var/lib/apt/lists/* \
+    && npm install -g n8n --omit=dev \
     && curl -fsSL https://code-server.dev/install.sh | sh
-
-# Configure MySQL to listen on all interfaces
-RUN sed -i 's/127.0.0.1/0.0.0.0/g' /etc/mysql/mysql.conf.d/mysqld.cnf
 
 # Configure SSH daemon settings
 RUN mkdir -p /var/run/sshd && \
@@ -35,6 +34,6 @@ COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
 EXPOSE 8080
-EXPOSE 3306
+EXPOSE 5678
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

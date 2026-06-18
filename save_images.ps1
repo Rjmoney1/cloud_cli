@@ -14,6 +14,7 @@ $images = @(
     "lab-java",
     "lab-mysql",
     "lab-nginx",
+    "lab-n8n",
     "mysql:8.0",
     "nginx:alpine"
 )

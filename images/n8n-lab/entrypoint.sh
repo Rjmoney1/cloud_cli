@@ -1,20 +1,10 @@
 #!/bin/bash
 
-# 1. Start MySQL Service (runs as root)
-service mysql start
-
-# Initialize MySQL with a test DB and user if not already done
-mysql -e "CREATE DATABASE IF NOT EXISTS student_db;"
-mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'rootpassword';"
-mysql -e "CREATE USER IF NOT EXISTS 'developer'@'%' IDENTIFIED BY 'password';"
-mysql -e "GRANT ALL PRIVILEGES ON *.* TO 'developer'@'%' WITH GRANT OPTION;"
-mysql -e "FLUSH PRIVILEGES;"
-
 # Default values if not passed
 USER_NAME=${USER_NAME:-developer}
 USER_PASSWORD_HASH=${USER_PASSWORD_HASH:-}
 
-# 2. Create the user dynamically if they don't exist
+# 1. Create the user dynamically if they don't exist
 if ! id -u "$USER_NAME" >/dev/null 2>&1; then
     if [ -n "$USER_PASSWORD_HASH" ]; then
         useradd -m -s /bin/bash -p "$USER_PASSWORD_HASH" "$USER_NAME"
@@ -24,12 +14,7 @@ if ! id -u "$USER_NAME" >/dev/null 2>&1; then
     usermod -aG sudo "$USER_NAME"
 fi
 
-# Create student specific MySQL user just in case they want it
-mysql -e "CREATE USER IF NOT EXISTS '${USER_NAME}'@'%' IDENTIFIED BY 'password';"
-mysql -e "GRANT ALL PRIVILEGES ON *.* TO '${USER_NAME}'@'%' WITH GRANT OPTION;"
-mysql -e "FLUSH PRIVILEGES;"
-
-# 3. Ensure ownership of their home directory
+# 2. Ensure ownership of their home directory
 if [ -d "/home/$USER_NAME" ]; then
     chown -R "$USER_NAME:$USER_NAME" "/home/$USER_NAME"
     cd "/home/$USER_NAME"
@@ -51,9 +36,18 @@ chmod 700 "$USER_SSH_DIR"
 chmod 600 "$USER_SSH_DIR/authorized_keys"
 chown -R "$USER_NAME:$USER_NAME" "$USER_SSH_DIR"
 
-# 4. Start the SSH server daemon
+# 3. Start the SSH server daemon
 ssh-keygen -A
 /usr/sbin/sshd
+
+# 4. Start n8n in the background as the student user
+export HOME="/home/$USER_NAME"
+export N8N_PORT=5678
+export N8N_PATH="/n8n/$USER_NAME/"
+export N8N_EDITOR_BASE_URL="/n8n/$USER_NAME/"
+export WEBHOOK_URL="http://localhost/n8n/$USER_NAME/"
+sleep 2
+su -p -s /bin/bash -c "export HOME='/home/$USER_NAME' && export N8N_PORT=5678 && export N8N_PATH='/n8n/$USER_NAME/' && export N8N_EDITOR_BASE_URL='/n8n/$USER_NAME/' && export WEBHOOK_URL='http://localhost/n8n/$USER_NAME/' && nohup n8n start > /tmp/n8n.log 2>&1 &" "$USER_NAME"
 
 # 5. Start code-server as the target student user
 export HOME="/home/$USER_NAME"

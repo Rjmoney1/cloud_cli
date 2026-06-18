@@ -17,7 +17,8 @@ INSERT INTO `services` (`name`, `image_name`, `description`) VALUES
 ('Ubuntu with Docker', 'lab-docker', 'Ubuntu environment with full privileged access and Docker-in-Docker support.'),
 ('Ubuntu with Java Dev Server', 'lab-java', 'Ubuntu environment pre-installed with OpenJDK and Java tools.'),
 ('Ubuntu with MySQL', 'lab-mysql', 'Ubuntu environment pre-installed and configured with MySQL Server.'),
-('Ubuntu with Nginx', 'lab-nginx', 'Ubuntu environment pre-installed with Nginx Web Server.')
+('Ubuntu with Nginx', 'lab-nginx', 'Ubuntu environment pre-installed with Nginx Web Server.'),
+('n8n Lab', 'lab-n8n', 'Ubuntu environment with Node.js, code-server, and n8n workflow automation service pre-installed.')
 ON DUPLICATE KEY UPDATE `image_name`=VALUES(`image_name`);
 
 
@@ -33,7 +34,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   `container_id` VARCHAR(100) DEFAULT NULL,
   `container_status` VARCHAR(20) NOT NULL DEFAULT 'stopped',
   `cpu_limit` DECIMAL(3,1) DEFAULT 1.0,
-  `memory_limit` INT DEFAULT 1024,
+  `memory_limit` INT DEFAULT 2048,
   `gpu_limit` INT DEFAULT 0,
   `ssh_private_key` TEXT DEFAULT NULL,
   `ssh_public_key` TEXT DEFAULT NULL,

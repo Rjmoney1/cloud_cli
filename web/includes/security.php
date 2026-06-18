@@ -65,6 +65,67 @@ function secure_session_start() {
     }
 }
 
+// ── Per-Tab Session Management ──
+// Allows multiple browser tabs to maintain independent user sessions
+
+function generate_tab_token() {
+    return bin2hex(random_bytes(16));
+}
+
+function set_tab_session($tabToken, $data) {
+    if (empty($tabToken)) return;
+    if (!isset($_SESSION['tabs'])) {
+        $_SESSION['tabs'] = [];
+    }
+    $_SESSION['tabs'][$tabToken] = $data;
+    $_SESSION['tabs'][$tabToken]['_last_active'] = time();
+    
+    // Cleanup stale tab sessions (older than 2 hours)
+    foreach ($_SESSION['tabs'] as $token => $tabData) {
+        if (isset($tabData['_last_active']) && (time() - $tabData['_last_active'] > 7200)) {
+            unset($_SESSION['tabs'][$token]);
+        }
+    }
+}
+
+function get_tab_session($tabToken = null) {
+    // 1. Try tab_token from parameter, then GET, then POST
+    if ($tabToken === null) {
+        $tabToken = $_GET['tab_token'] ?? $_POST['tab_token'] ?? '';
+    }
+    
+    if (!empty($tabToken) && isset($_SESSION['tabs'][$tabToken])) {
+        // Update last active timestamp
+        $_SESSION['tabs'][$tabToken]['_last_active'] = time();
+        return $_SESSION['tabs'][$tabToken];
+    }
+    
+    // 2. Fallback: return legacy session data for backwards compatibility
+    $legacy = [];
+    if (isset($_SESSION['student_user_id'])) {
+        $legacy['user_id'] = $_SESSION['student_user_id'];
+        $legacy['username'] = $_SESSION['student_username'] ?? '';
+        $legacy['role'] = $_SESSION['student_role'] ?? 'user';
+        $legacy['lab_type'] = $_SESSION['student_lab_type'] ?? 'Ubuntu 22.04 LTS';
+    } elseif (isset($_SESSION['admin_user_id'])) {
+        $legacy['user_id'] = $_SESSION['admin_user_id'];
+        $legacy['username'] = $_SESSION['admin_username'] ?? '';
+        $legacy['role'] = $_SESSION['admin_role'] ?? 'admin';
+    }
+    
+    return !empty($legacy) ? $legacy : null;
+}
+
+function remove_tab_session($tabToken) {
+    if (!empty($tabToken) && isset($_SESSION['tabs'][$tabToken])) {
+        unset($_SESSION['tabs'][$tabToken]);
+    }
+}
+
+function get_current_tab_token() {
+    return $_GET['tab_token'] ?? $_POST['tab_token'] ?? '';
+}
+
 // 2. Security Headers
 function set_security_headers() {
     if (headers_sent()) return;

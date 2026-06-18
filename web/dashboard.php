@@ -16,10 +16,51 @@ $labType = $_SESSION['student_lab_type'];
 
 $docker = new DockerClient();
 
+/**
+ * Returns icon, color utility, and button classes based on service name.
+ */
+function getServiceDetails($name) {
+    $details = [
+        'icon' => 'fa-brands fa-ubuntu',
+        'color' => 'text-orange-600 bg-orange-600/10 border-orange-500/20',
+        'btn_class' => 'bg-orange-600 hover:bg-orange-500 text-white shadow-orange-600/20'
+    ];
+    
+    $lower = strtolower($name);
+    if (strpos($lower, 'kali') !== false) {
+        $details['icon'] = 'fa-solid fa-shield-halved';
+        $details['color'] = 'text-sky-400 bg-sky-400/10 border-sky-500/20';
+        $details['btn_class'] = 'bg-sky-600 hover:bg-sky-500 text-white shadow-sky-600/20';
+    } elseif (strpos($lower, 'docker') !== false) {
+        $details['icon'] = 'fa-brands fa-docker';
+        $details['color'] = 'text-blue-400 bg-blue-400/10 border-blue-500/20';
+        $details['btn_class'] = 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/20';
+    } elseif (strpos($lower, 'java') !== false) {
+        $details['icon'] = 'fa-brands fa-java';
+        $details['color'] = 'text-orange-500 bg-orange-500/10 border-orange-500/20';
+        $details['btn_class'] = 'bg-orange-600 hover:bg-orange-500 text-white shadow-orange-600/20';
+    } elseif (strpos($lower, 'mysql') !== false) {
+        $details['icon'] = 'fa-solid fa-database';
+        $details['color'] = 'text-emerald-400 bg-emerald-400/10 border-emerald-500/20';
+        $details['btn_class'] = 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20';
+    } elseif (strpos($lower, 'nginx') !== false) {
+        $details['icon'] = 'fa-solid fa-server';
+        $details['color'] = 'text-green-400 bg-green-400/10 border-green-500/20';
+        $details['btn_class'] = 'bg-green-600 hover:bg-green-500 text-white shadow-green-600/20';
+    } elseif (strpos($lower, 'n8n') !== false) {
+        $details['icon'] = 'fa-solid fa-circle-nodes';
+        $details['color'] = 'text-rose-500 bg-rose-500/10 border-rose-500/20';
+        $details['btn_class'] = 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-600/20';
+    }
+    
+    return $details;
+}
+
 // Fetch current user details from DB to get the latest status
-$stmt = $pdo->prepare("SELECT container_status, container_id, ssh_private_key, ssh_public_key, mfa_secret, mfa_enabled FROM users WHERE id = ?");
+$stmt = $pdo->prepare("SELECT lab_type, container_status, container_id, ssh_private_key, ssh_public_key, mfa_secret, mfa_enabled FROM users WHERE id = ?");
 $stmt->execute([$userId]);
 $user = $stmt->fetch();
+$labType = $user['lab_type'] ?? $_SESSION['student_lab_type'];
 $containerStatus = $user['container_status'] ?? 'stopped';
 $containerId = $user['container_id'] ?? '';
 $mfaEnabled = intval($user['mfa_enabled'] ?? 0);
@@ -65,6 +106,10 @@ if ($containerStatus === 'running' && !empty($containerId)) {
         $updateStmt->execute([$userId]);
     }
 }
+
+// Fetch all registered lab services
+$servicesStmt = $pdo->query("SELECT * FROM services ORDER BY name ASC");
+$services = $servicesStmt->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="en" class="h-full bg-zinc-950">
@@ -180,6 +225,8 @@ if ($containerStatus === 'running' && !empty($containerId)) {
                                 <i class="fa-solid fa-database"></i>
                             <?php elseif ($labType === 'Ubuntu with Nginx'): ?>
                                 <i class="fa-solid fa-server"></i>
+                            <?php elseif ($labType === 'n8n Lab'): ?>
+                                <i class="fa-solid fa-circle-nodes"></i>
                             <?php else: ?>
                                 <i class="fa-brands fa-ubuntu"></i>
                             <?php endif; ?>
@@ -251,6 +298,13 @@ if ($containerStatus === 'running' && !empty($containerId)) {
                     <i class="fa-solid fa-code text-xl"></i> Launch VS Code IDE
                 </a>
 
+                <?php if ($labType === 'n8n Lab'): ?>
+                <a id="btn-launch-n8n" href="#" target="_blank" onclick="return checkLaunchActive(event)"
+                    class="mt-3 w-full py-4 bg-zinc-900 border border-zinc-800 text-zinc-500 pointer-events-none rounded-2xl font-bold text-center transition-all duration-300 flex items-center justify-center gap-2 select-none">
+                    <i class="fa-solid fa-circle-nodes text-xl"></i> Launch n8n Workflow UI
+                </a>
+                <?php endif; ?>
+
                 <div id="ssh-info-box" class="hidden border border-zinc-800/40 rounded-xl p-4 bg-zinc-950/20 text-xs text-zinc-400 space-y-3">
                     <span class="font-bold text-zinc-300"><i class="fa-solid fa-terminal text-brand mr-1"></i> SSH Terminal Connection</span>
                     
@@ -321,6 +375,57 @@ if ($containerStatus === 'running' && !empty($containerId)) {
             </div>
             
         </div>
+
+        <!-- Available Laboratory Environments -->
+        <div class="space-y-6 border-t border-zinc-900/60 pt-10 mt-10">
+            <div>
+                <h2 class="text-2xl font-bold text-white tracking-tight flex items-center gap-2.5">
+                    <i class="fa-solid fa-layer-group text-brand"></i> Available Laboratory Environments
+                </h2>
+                <p class="text-zinc-400 text-sm mt-1">Deploy any environment below. Switching environments preserves your files in the home directory.</p>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <?php foreach ($services as $service): 
+                    $isActive = ($labType === $service['name']);
+                    $details = getServiceDetails($service['name']);
+                ?>
+                    <div class="relative group bg-zinc-900/20 hover:bg-zinc-900/45 border <?= $isActive ? 'border-brand/40 shadow-lg shadow-brand/5' : 'border-zinc-900 hover:border-zinc-800' ?> rounded-2xl p-6 transition-all duration-300 flex flex-col justify-between gap-6 overflow-hidden">
+                        <?php if ($isActive): ?>
+                            <div class="absolute top-0 right-0 bg-brand text-zinc-950 text-[10px] font-bold px-3 py-1 rounded-bl-xl uppercase tracking-wider">
+                                Active
+                            </div>
+                        <?php endif; ?>
+                        
+                        <div class="space-y-4">
+                            <div class="flex items-center gap-3">
+                                <div class="h-12 w-12 rounded-xl border flex items-center justify-center text-xl <?= $details['color'] ?>">
+                                    <i class="<?= $details['icon'] ?>"></i>
+                                </div>
+                                <div>
+                                    <h3 class="font-bold text-white text-base group-hover:text-brand transition-colors"><?= htmlspecialchars($service['name']) ?></h3>
+                                    <span class="text-[10px] font-mono text-zinc-500 uppercase"><?= htmlspecialchars($service['image_name']) ?></span>
+                                </div>
+                            </div>
+                            <p class="text-xs text-zinc-400 leading-relaxed min-h-[48px]"><?= htmlspecialchars($service['description']) ?></p>
+                        </div>
+
+                        <div class="border-t border-zinc-900/60 pt-4">
+                            <?php if ($isActive): ?>
+                                <button disabled class="w-full py-2.5 bg-zinc-950 border border-zinc-900 text-zinc-500 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-not-allowed select-none">
+                                    <i class="fa-solid fa-circle-check text-brand"></i> Currently Active
+                                </button>
+                            <?php else: ?>
+                                <button onclick="deployLab('<?= htmlspecialchars($service['name'], ENT_QUOTES) ?>')" 
+                                    class="w-full py-2.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-850 text-zinc-300 hover:text-white text-xs font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 shadow-md shadow-black/10 group-hover:border-zinc-700">
+                                    <i class="fa-solid fa-rocket text-brand group-hover:animate-pulse"></i> Deploy Environment
+                                </button>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
     </main>
 
     <!-- Footer -->
@@ -342,6 +447,7 @@ if ($containerStatus === 'running' && !empty($containerId)) {
             const btnStop = document.getElementById('btn-stop');
             const btnRestart = document.getElementById('btn-restart');
             const btnLaunch = document.getElementById('btn-launch');
+            const btnLaunchN8n = document.getElementById('btn-launch-n8n');
             const sshBox = document.getElementById('ssh-info-box');
 
             if (status === 'running') {
@@ -360,6 +466,12 @@ if ($containerStatus === 'running' && !empty($containerId)) {
                 btnLaunch.classList.remove('pointer-events-none');
                 btnLaunch.href = "/workspace/<?= htmlspecialchars($username) ?>/";
                 
+                if (btnLaunchN8n) {
+                    btnLaunchN8n.className = "mt-3 w-full py-4 bg-rose-600 hover:bg-rose-500 active:bg-rose-700 text-white rounded-2xl font-bold text-center shadow-lg shadow-rose-600/20 hover:shadow-rose-600/35 transition-all duration-300 flex items-center justify-center gap-2 transform hover:scale-[1.01]";
+                    btnLaunchN8n.classList.remove('pointer-events-none');
+                    btnLaunchN8n.href = "/n8n/<?= htmlspecialchars($username) ?>/";
+                }
+
                 // Show SSH Box
                 sshBox.classList.remove('hidden');
             } else if (status === 'stopped') {
@@ -378,6 +490,12 @@ if ($containerStatus === 'running' && !empty($containerId)) {
                 btnLaunch.classList.add('pointer-events-none');
                 btnLaunch.href = "#";
 
+                if (btnLaunchN8n) {
+                    btnLaunchN8n.className = "mt-3 w-full py-4 bg-zinc-900 border border-zinc-800/60 text-zinc-600 pointer-events-none rounded-2xl font-bold text-center flex items-center justify-center gap-2 select-none";
+                    btnLaunchN8n.classList.add('pointer-events-none');
+                    btnLaunchN8n.href = "#";
+                }
+
                 // Hide SSH Box
                 sshBox.classList.add('hidden');
             } else {
@@ -392,6 +510,11 @@ if ($containerStatus === 'running' && !empty($containerId)) {
                 btnRestart.disabled = true;
                 btnLaunch.className = "w-full py-4 bg-zinc-900 border border-zinc-800/60 text-zinc-600 pointer-events-none rounded-2xl font-bold text-center flex items-center justify-center gap-2 select-none";
                 btnLaunch.classList.add('pointer-events-none');
+
+                if (btnLaunchN8n) {
+                    btnLaunchN8n.className = "mt-3 w-full py-4 bg-zinc-900 border border-zinc-800/60 text-zinc-600 pointer-events-none rounded-2xl font-bold text-center flex items-center justify-center gap-2 select-none";
+                    btnLaunchN8n.classList.add('pointer-events-none');
+                }
 
                 // Hide SSH Box
                 sshBox.classList.add('hidden');
@@ -431,7 +554,33 @@ if ($containerStatus === 'running' && !empty($containerId)) {
                 });
         }
 
+        function deployLab(labName) {
+            let msg = `Are you sure you want to deploy ${labName}?`;
+            if (currentStatus === 'running') {
+                msg = `Switching to ${labName} will automatically stop and replace your current running lab. Your persistent home directory files will be saved. Do you want to proceed?`;
+            }
+            if (!confirm(msg)) return;
 
+            updateUIState("starting...");
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+
+            fetch(`api/container.php?action=deploy&lab_type=${encodeURIComponent(labName)}&csrf_token=<?= csrf_token() ?>`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(`Successfully deployed ${labName}! The workspace is booting up.`);
+                        location.reload();
+                    } else {
+                        alert("Deployment failed: " + data.message);
+                        location.reload();
+                    }
+                })
+                .catch(err => {
+                    console.error("Error deploying lab:", err);
+                    alert("A network error occurred during deployment.");
+                    location.reload();
+                });
+        }
 
         function configureMFA(action) {
             const form = document.getElementById(`form-mfa-${action}`);
