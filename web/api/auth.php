@@ -258,7 +258,7 @@ elseif ($action === 'register') {
         !preg_match('/[a-z]/', $password) ||
         !preg_match('/[A-Z]/', $password) ||
         !preg_match('/[0-9]/', $password) ||
-        !preg_match('#[!@#$%^&*()_+\-=\[\]{};\':",.\\/<>?|`~]#', $password)) {
+        !preg_match('#[!@\#$%^&*()_+\-=\[\]{};\':",.\\\\/<>?|`~]#', $password)) {
         $_SESSION['error'] = "Password must be at least 8 characters long and include at least one uppercase letter, one lowercase letter, one number, and one special character.";
         header("Location: ../register.php");
         exit();

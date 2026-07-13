@@ -128,6 +128,28 @@ The script will automatically:
 
 Open [http://localhost](http://localhost) in your browser to access the portal.
 
+### 3. Lab Environment Image Building
+
+By default, the setup scripts build only the basic Ubuntu environment. You can build specific lab environment images manually using Docker Compose:
+
+* **Build only the basic Ubuntu lab image (`lab-ubuntu`):**
+  This builds the standard clean Ubuntu 22.04 environment with SSH and VS Code support:
+  ```bash
+  docker compose --profile lab-images build lab-ubuntu
+  ```
+
+* **Build only the Ubuntu with Docker lab image (`lab-docker`):**
+  This builds the Ubuntu environment equipped with Docker-in-Docker (DinD) capabilities and privileged access:
+  ```bash
+  docker compose --profile lab-images build lab-docker
+  ```
+
+* **Build all available Ubuntu lab images at once:**
+  This builds all configured environments (standard Ubuntu, Docker, Java, MySQL, Nginx, and n8n):
+  ```bash
+  docker compose --profile lab-images build
+  ```
+
 ---
 
 ## 📂 API Reference

@@ -50,6 +50,49 @@ services:
     networks:
       - linux-lab-net
 
+  # Student Lab Images Build Configurations (run: docker compose --profile lab-images build)
+  lab-ubuntu:
+    build:
+      context: ./images/ubuntu-22.04
+    image: lab-ubuntu
+    profiles:
+      - lab-images
+
+  lab-docker:
+    build:
+      context: ./images/ubuntu-docker
+    image: lab-docker
+    profiles:
+      - lab-images
+
+  lab-java:
+    build:
+      context: ./images/ubuntu-java
+    image: lab-java
+    profiles:
+      - lab-images
+
+  lab-mysql:
+    build:
+      context: ./images/ubuntu-mysql
+    image: lab-mysql
+    profiles:
+      - lab-images
+
+  lab-nginx:
+    build:
+      context: ./images/ubuntu-nginx
+    image: lab-nginx
+    profiles:
+      - lab-images
+
+  lab-n8n:
+    build:
+      context: ./images/n8n-lab
+    image: lab-n8n
+    profiles:
+      - lab-images
+
 volumes:
   db-data:
 
