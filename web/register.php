@@ -1,7 +1,15 @@
 <?php
 session_start();
-if (isset($_SESSION['student_user_id'])) {
-    header("Location: dashboard.php");
+if (isset($_SESSION['student_user_id']) && !isset($_GET['new_session'])) {
+    $tabToken = '';
+    if (isset($_SESSION['tabs'])) {
+        $keys = array_keys($_SESSION['tabs']);
+        if (!empty($keys)) {
+            $tabToken = $keys[0];
+        }
+    }
+    $query = $tabToken ? "?tab_token=" . urlencode($tabToken) : "";
+    header("Location: dashboard.php" . $query);
     exit();
 }
 require_once __DIR__ . '/includes/db.php';

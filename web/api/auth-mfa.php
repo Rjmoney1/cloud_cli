@@ -6,7 +6,8 @@ require_once __DIR__ . '/../includes/TOTP.php';
 header('Content-Type: application/json');
 
 // Check authentication
-$userId = $_SESSION['student_user_id'] ?? $_SESSION['admin_user_id'] ?? null;
+$identity = resolve_user_identity();
+$userId = $identity ? $identity['user_id'] : null;
 if (!$userId) {
     echo json_encode(['success' => false, 'message' => 'Unauthorized.']);
     exit();

@@ -9,9 +9,10 @@ require_once __DIR__ . '/../includes/DockerClient.php';
 require_once __DIR__ . '/../includes/auth_check.php';
 
 // Check if user is logged in (either student or admin)
-$studentUserId = $_SESSION['student_user_id'] ?? null;
-$adminUserId = $_SESSION['admin_user_id'] ?? null;
-$isAdmin = isset($_SESSION['admin_role']) && $_SESSION['admin_role'] === 'admin';
+$identity = resolve_user_identity();
+$studentUserId = ($identity && $identity['role'] === 'user') ? $identity['user_id'] : null;
+$adminUserId = ($identity && $identity['role'] === 'admin') ? $identity['user_id'] : null;
+$isAdmin = ($identity && $identity['role'] === 'admin');
 
 if (!$studentUserId && !$adminUserId) {
     echo json_encode(['success' => false, 'message' => 'Unauthorized access.']);

@@ -10,9 +10,19 @@ require_once __DIR__ . '/includes/DockerClient.php';
 // Verify login
 check_login();
 
-$userId = $_SESSION['student_user_id'];
-$username = $_SESSION['student_username'];
-$labType = $_SESSION['student_lab_type'];
+$identity = resolve_user_identity();
+if (!$identity) {
+    header("Location: index.php");
+    exit();
+}
+if (($identity['role'] ?? '') === 'admin') {
+    header("Location: admin.php?tab_token=" . urlencode(get_current_tab_token()));
+    exit();
+}
+
+$userId = $identity['user_id'];
+$username = $identity['username'];
+$labType = $identity['lab_type'] ?? 'Ubuntu 22.04 LTS';
 
 $docker = new DockerClient();
 
@@ -114,6 +124,15 @@ $services = $servicesStmt->fetchAll();
 <!DOCTYPE html>
 <html lang="en" class="h-full bg-zinc-950">
 <head>
+    <script>
+        // Redirect to the URL with the tab token if it's missing from the address bar
+        if (!window.location.search.includes('tab_token')) {
+            const savedUrl = sessionStorage.getItem('dashboard_url');
+            if (savedUrl && savedUrl.includes('tab_token')) {
+                window.location.replace(savedUrl);
+            }
+        }
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Student Dashboard - CloudLab</title>
@@ -180,11 +199,14 @@ $services = $servicesStmt->fetchAll();
                 <span class="text-xl font-bold text-white">Cloud<span class="text-brand">Lab</span></span>
             </div>
             
-            <div class="flex items-center gap-6">
-                <div class="hidden sm:flex items-center gap-2 text-sm text-zinc-400">
+            <div class="flex items-center gap-4">
+                <div class="hidden sm:flex items-center gap-2 text-sm text-zinc-400 mr-2">
                     <span class="h-2 w-2 rounded-full bg-green-500"></span>
                     Logged in as: <span class="font-semibold text-zinc-200"><?= htmlspecialchars($username) ?></span>
                 </div>
+                <a href="index.php?new_session=1" target="_blank" class="py-2 px-4 bg-zinc-900 hover:bg-zinc-800 text-brand border border-zinc-800 hover:border-brand/40 rounded-lg text-sm font-medium transition-all duration-200">
+                    <i class="fa-solid fa-user-plus mr-1.5"></i> New Session
+                </a>
                 <a href="api/auth.php?action=logout&role=student" class="py-2 px-4 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-800 rounded-lg text-sm font-medium transition-all duration-200">
                     <i class="fa-solid fa-right-from-bracket mr-1.5"></i> Logout
                 </a>
@@ -435,6 +457,14 @@ $services = $servicesStmt->fetchAll();
 
     <!-- Script handlers -->
     <script>
+        // Save current dashboard URL with tab token to sessionStorage
+        sessionStorage.setItem('dashboard_url', 'dashboard.php?tab_token=<?= urlencode(get_current_tab_token()) ?>');
+        // Clean URL to hide the token from the browser address bar
+        if (window.location.search.includes('tab_token')) {
+            const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+            window.history.replaceState({}, '', cleanUrl);
+        }
+
         let currentStatus = "<?= $containerStatus ?>";
          function updateUIState(status) {
             currentStatus = status;
@@ -536,7 +566,7 @@ $services = $servicesStmt->fetchAll();
 
             updateUIState(transitionState);
 
-            fetch(`api/container.php?action=${action}&csrf_token=<?= csrf_token() ?>`)
+            fetch(`api/container.php?action=${action}&csrf_token=<?= csrf_token() ?>&tab_token=<?= urlencode(get_current_tab_token()) ?>`)
                 .then(res => res.json())
                 .then(data => {
                     if (data.success) {
@@ -564,7 +594,7 @@ $services = $servicesStmt->fetchAll();
             updateUIState("starting...");
             window.scrollTo({ top: 0, behavior: 'smooth' });
 
-            fetch(`api/container.php?action=deploy&lab_type=${encodeURIComponent(labName)}&csrf_token=<?= csrf_token() ?>`)
+            fetch(`api/container.php?action=deploy&lab_type=${encodeURIComponent(labName)}&csrf_token=<?= csrf_token() ?>&tab_token=<?= urlencode(get_current_tab_token()) ?>`)
                 .then(res => res.json())
                 .then(data => {
                     if (data.success) {
@@ -586,7 +616,7 @@ $services = $servicesStmt->fetchAll();
             const form = document.getElementById(`form-mfa-${action}`);
             const formData = new FormData(form);
             
-            fetch(`api/auth-mfa.php?action=${action}`, {
+            fetch(`api/auth-mfa.php?action=${action}&tab_token=<?= urlencode(get_current_tab_token()) ?>`, {
                 method: 'POST',
                 body: formData
             })

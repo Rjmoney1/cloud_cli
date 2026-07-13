@@ -8,7 +8,8 @@ require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/DockerClient.php';
 
 // 1. Check if user is logged in as admin
-if (!isset($_SESSION['admin_user_id']) || $_SESSION['admin_role'] !== 'admin') {
+$identity = resolve_user_identity();
+if (!$identity || $identity['role'] !== 'admin') {
     if (($_GET['action'] ?? '') === 'upload_iso') {
         $_SESSION['error'] = "Unauthorized access.";
         header("Location: ../admin.php");

@@ -7,7 +7,8 @@ require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/auth_check.php';
 
 // Authenticate user
-if (!isset($_SESSION['student_user_id'])) {
+$identity = resolve_user_identity();
+if (!$identity || $identity['role'] !== 'user') {
     echo json_encode(['success' => false, 'message' => 'Unauthorized.']);
     exit();
 }
@@ -34,8 +35,8 @@ if (!$isTokenAuth && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$userId = $_SESSION['student_user_id'];
-$username = $_SESSION['student_username'];
+$userId = $identity['user_id'];
+$username = $identity['username'];
 $action = $_POST['action'] ?? '';
 
 if ($action === 'reset') {

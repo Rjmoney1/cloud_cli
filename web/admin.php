@@ -10,7 +10,17 @@ require_once __DIR__ . '/includes/DockerClient.php';
 // Verify Admin Privileges
 check_admin();
 
-$username = $_SESSION['admin_username'];
+$identity = resolve_user_identity();
+if (!$identity) {
+    header("Location: index.php");
+    exit();
+}
+if (($identity['role'] ?? '') === 'user') {
+    header("Location: dashboard.php?tab_token=" . urlencode(get_current_tab_token()));
+    exit();
+}
+
+$username = $identity['username'];
 $docker = new DockerClient();
 
 // Fetch all standard users
@@ -45,6 +55,15 @@ $mounts = $mountsStmt->fetchAll();
 <!DOCTYPE html>
 <html lang="en" class="h-full bg-zinc-950">
 <head>
+    <script>
+        // Redirect to the URL with the tab token if it's missing from the address bar
+        if (!window.location.search.includes('tab_token')) {
+            const savedUrl = sessionStorage.getItem('dashboard_url');
+            if (savedUrl && savedUrl.includes('tab_token')) {
+                window.location.replace(savedUrl);
+            }
+        }
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Panel - CloudLab</title>
@@ -117,6 +136,9 @@ $mounts = $mountsStmt->fetchAll();
                 <div class="hidden sm:flex items-center gap-2 text-sm text-zinc-400">
                     Logged in as: <span class="font-semibold text-zinc-200"><?= htmlspecialchars($username) ?></span>
                 </div>
+                <a href="index.php?new_session=1" target="_blank" class="py-2 px-4 bg-zinc-900 hover:bg-zinc-800 text-brand border border-zinc-800 hover:border-brand/40 rounded-lg text-sm font-medium transition-all duration-200">
+                    <i class="fa-solid fa-user-plus mr-1.5"></i> New Session
+                </a>
                 <a href="api/auth.php?action=logout&role=admin" class="py-2 px-4 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-800 rounded-lg text-sm font-medium transition-all duration-200">
                     <i class="fa-solid fa-right-from-bracket mr-1.5"></i> Logout
                 </a>
@@ -383,7 +405,7 @@ $mounts = $mountsStmt->fetchAll();
                 <div class="lg:col-span-1 bg-zinc-950/30 border border-zinc-900 rounded-2xl p-5 space-y-4">
                     <h3 class="font-bold text-white text-sm uppercase tracking-wider text-brand">Upload ISO Image</h3>
                     
-                    <form action="api/admin-action.php?action=upload_iso" method="POST" enctype="multipart/form-data" class="space-y-4">
+                    <form action="api/admin-action.php?action=upload_iso&tab_token=<?= urlencode(get_current_tab_token()) ?>" method="POST" enctype="multipart/form-data" class="space-y-4">
                         <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
                         <div class="border border-dashed border-zinc-800 hover:border-brand/40 rounded-xl p-4 text-center cursor-pointer transition flex flex-col items-center justify-center bg-zinc-950/20">
                             <i class="fa-solid fa-cloud-arrow-up text-zinc-600 text-3xl mb-2"></i>
@@ -558,6 +580,14 @@ $mounts = $mountsStmt->fetchAll();
 
     <!-- Admin JS controllers -->
     <script>
+        // Save current admin URL with tab token to sessionStorage
+        sessionStorage.setItem('dashboard_url', 'admin.php?tab_token=<?= urlencode(get_current_tab_token()) ?>');
+        // Clean URL to hide the token from the browser address bar
+        if (window.location.search.includes('tab_token')) {
+            const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+            window.history.replaceState({}, '', cleanUrl);
+        }
+
         let logEventSource = null;
         let activeLogUserId = null;
 
@@ -566,7 +596,7 @@ $mounts = $mountsStmt->fetchAll();
             badge.className = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border bg-amber-950/20 border-brand/20 text-brand";
             badge.innerHTML = `<span class="h-1.5 w-1.5 rounded-full bg-brand animate-ping"></span> ${action === 'start' ? 'Starting...' : action === 'stop' ? 'Stopping...' : 'Restarting...'}`;
 
-            fetch(`api/container.php?action=${action}&user_id=${userId}&csrf_token=<?= csrf_token() ?>`)
+            fetch(`api/container.php?action=${action}&user_id=${userId}&csrf_token=<?= csrf_token() ?>&tab_token=<?= urlencode(get_current_tab_token()) ?>`)
                 .then(res => res.json())
                 .then(data => {
                     if (data.success) {
@@ -593,7 +623,7 @@ $mounts = $mountsStmt->fetchAll();
             btn.disabled = true;
             btn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> Processing...`;
 
-            fetch(`api/admin-action.php?action=${action}`, {
+            fetch(`api/admin-action.php?action=${action}&tab_token=<?= urlencode(get_current_tab_token()) ?>`, {
                 method: 'POST',
                 body: formData
             })
@@ -629,7 +659,7 @@ $mounts = $mountsStmt->fetchAll();
         function unmountIso(mountId) {
             if (!confirm("Are you sure you want to unmount this ISO file?")) return;
 
-            fetch(`api/admin-action.php?action=unmount_iso`, {
+            fetch(`api/admin-action.php?action=unmount_iso&tab_token=<?= urlencode(get_current_tab_token()) ?>`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: `mount_id=${mountId}&csrf_token=<?= csrf_token() ?>`
@@ -682,7 +712,7 @@ $mounts = $mountsStmt->fetchAll();
             btn.innerHTML = `<i class="fa-solid fa-circle-stop mr-1"></i> Stop Streaming`;
 
             activeLogUserId = userId;
-            logEventSource = new EventSource(`api/docker-logs.php?user_id=${userId}`);
+            logEventSource = new EventSource(`api/docker-logs.php?user_id=${userId}&tab_token=<?= urlencode(get_current_tab_token()) ?>`);
 
             logEventSource.onmessage = function(event) {
                 const data = JSON.parse(event.data);
@@ -744,7 +774,7 @@ $mounts = $mountsStmt->fetchAll();
             btn.disabled = true;
             btn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> Saving...`;
 
-            fetch('api/admin-action.php?action=update_limits', {
+            fetch('api/admin-action.php?action=update_limits&tab_token=<?= urlencode(get_current_tab_token()) ?>', {
                 method: 'POST',
                 body: formData
             })
@@ -772,7 +802,7 @@ $mounts = $mountsStmt->fetchAll();
         function deleteService(serviceId) {
             if (!confirm("Are you sure you want to delete this service? Students currently assigned to this environment will fail to launch containers until they are assigned a valid environment.")) return;
 
-            fetch('api/admin-action.php?action=delete_service', {
+            fetch('api/admin-action.php?action=delete_service&tab_token=<?= urlencode(get_current_tab_token()) ?>', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: `service_id=${serviceId}&csrf_token=<?= csrf_token() ?>`

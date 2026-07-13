@@ -13,7 +13,8 @@ require_once __DIR__ . '/../includes/DockerClient.php';
 require_once __DIR__ . '/../includes/auth_check.php';
 
 // Only admins can subscribe to all container stats
-if (!isset($_SESSION['admin_user_id']) || $_SESSION['admin_role'] !== 'admin') {
+$identity = resolve_user_identity();
+if (!$identity || $identity['role'] !== 'admin') {
     echo "data: " . json_encode(['error' => 'Unauthorized']) . "\n\n";
     ob_flush(); flush();
     exit();

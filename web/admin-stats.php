@@ -9,11 +9,30 @@ require_once __DIR__ . '/includes/auth_check.php';
 // Verify Admin Privileges
 check_admin();
 
-$username = $_SESSION['admin_username'];
+$identity = resolve_user_identity();
+if (!$identity) {
+    header("Location: index.php");
+    exit();
+}
+if (($identity['role'] ?? '') === 'user') {
+    header("Location: dashboard.php?tab_token=" . urlencode(get_current_tab_token()));
+    exit();
+}
+
+$username = $identity['username'];
 ?>
 <!DOCTYPE html>
 <html lang="en" class="h-full bg-zinc-950">
 <head>
+    <script>
+        // Redirect to the URL with the tab token if it's missing from the address bar
+        if (!window.location.search.includes('tab_token')) {
+            const savedUrl = sessionStorage.getItem('dashboard_url');
+            if (savedUrl && savedUrl.includes('tab_token')) {
+                window.location.replace(savedUrl);
+            }
+        }
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Live Monitoring Dashboard - CloudLab</title>
@@ -78,6 +97,9 @@ $username = $_SESSION['admin_username'];
                     <i class="fa-solid fa-arrow-left mr-1.5"></i> Admin Control Panel
                 </a>
                 <div class="hidden md:block h-4 w-[1px] bg-zinc-800"></div>
+                <a href="index.php?new_session=1" target="_blank" class="py-2 px-4 bg-zinc-900 hover:bg-zinc-800 text-brand border border-zinc-800 hover:border-brand/40 rounded-lg text-sm font-medium transition-all duration-200">
+                    <i class="fa-solid fa-user-plus mr-1.5"></i> New Session
+                </a>
                 <a href="api/auth.php?action=logout&role=admin" class="py-2 px-4 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-800 rounded-lg text-sm font-medium transition-all duration-200">
                     <i class="fa-solid fa-right-from-bracket mr-1.5"></i> Logout
                 </a>
@@ -171,6 +193,14 @@ $username = $_SESSION['admin_username'];
 
     <!-- Stats JS Stream logic -->
     <script>
+        // Save current admin stats URL with tab token to sessionStorage
+        sessionStorage.setItem('dashboard_url', 'admin-stats.php?tab_token=<?= urlencode(get_current_tab_token()) ?>');
+        // Clean URL to hide the token from the browser address bar
+        if (window.location.search.includes('tab_token')) {
+            const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+            window.history.replaceState({}, '', cleanUrl);
+        }
+
         let hostEventSource = null;
         let dockerEventSource = null;
         
@@ -212,7 +242,7 @@ $username = $_SESSION['admin_username'];
 
         // Initialize Docker Containers Stats SSE
         function initDockerStats() {
-            dockerEventSource = new EventSource('api/docker-stats.php');
+            dockerEventSource = new EventSource('api/docker-stats.php?tab_token=<?= urlencode(get_current_tab_token()) ?>');
             dockerEventSource.onmessage = function(e) {
                 const data = JSON.parse(e.data);
                 

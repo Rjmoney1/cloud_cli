@@ -11,12 +11,20 @@ if (isset($_GET['cancel_mfa'])) {
     exit();
 }
 
-// Redirect if already fully logged in
-if (isset($_SESSION['admin_user_id']) || isset($_SESSION['student_user_id'])) {
+// Redirect if already fully logged in (unless requesting a new session)
+if ((isset($_SESSION['admin_user_id']) || isset($_SESSION['student_user_id'])) && !isset($_GET['new_session'])) {
+    $tabToken = '';
+    if (isset($_SESSION['tabs'])) {
+        $keys = array_keys($_SESSION['tabs']);
+        if (!empty($keys)) {
+            $tabToken = $keys[0];
+        }
+    }
+    $query = $tabToken ? "?tab_token=" . urlencode($tabToken) : "";
     if (isset($_SESSION['admin_user_id'])) {
-        header("Location: admin.php");
+        header("Location: admin.php" . $query);
     } else {
-        header("Location: dashboard.php");
+        header("Location: dashboard.php" . $query);
     }
     exit();
 }
