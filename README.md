@@ -205,21 +205,3 @@ To shutdown all services and clean up network resources:
 ```bash
 docker compose down
 ```
-
----
-
-## 📚 Academic Reference & Theoretical Foundation
-
-This platform incorporates architectural principles and resource allocation concepts from recent research in **End-Edge-Cloud Collaborative Systems**:
-
-### 📄 Referenced IEEE Publication
-* **Title:** Distributed Resource Allocation and Mixed Task Offloading for End-Edge-Cloud Collaborative Systems
-* **Domain:** Multi-Tier Cloud Computing, Resource Allocation & Computation Offloading
-
-#### 📝 Paper Abstract
-> Multi-tier computation offloading is crucial to address capacity constraints and improve flexibility for mobile devices. However, existing research on multi-layer computing offloading faces challenges like inefficient resource utilization and poor scalability, particularly in handling diverse computational tasks. To address these challenges, this paper proposes a distributed resource allocation and mixed task offloading framework for end-edge-cloud collaborative systems that support partial and full task offloading modes. First, we propose a three-tier computing architecture and formulate a task-offloading utility maximization problem by jointly optimizing mixed task-offloading and resource allocation. The proposed problem is a mixed integer nonlinear program (MINLP), which we solve by decomposing it into two subproblems resource allocation and task offloading. Edge computing resources and bandwidth allocation can be independently optimized at each edge node with a fixed task offloading strategy. Cloud computing resource allocation, while convex, involves a global constraint, which we solve in a decentralized manner using a multi-agent optimization approach. Then, we propose a joint task offloading and resource allocation optimization algorithm, CNO-TORA, to obtain the solution to the formulated problem. The algorithm is supported by strong theoretical guarantees and is almost surely convergent to a globally optimal solution. Experimental results on a real dataset demonstrate that our algorithm is scalable to large-scale networks and outperforms baselines, achieving improvements in average system utility ranging from 4.01%-28.15%.
-
-#### 💡 Relevance to CloudLab Architecture
-1. **Three-Tier Computing Architecture:** Mirrors CloudLab's 3-tier topology connecting Client Devices / Browsers (End) to Nginx Proxy & Web Orchestrator (Edge) and Isolated Docker Workspaces & Database Engine (Cloud).
-2. **Resource Allocation & Constraints:** Provides mathematical justification for enforcing per-container CPU (`cpu_limit`), Memory (`memory_limit`), and GPU (`gpu_limit`) constraints to optimize multi-tenant host utility and mitigate DoS attacks.
-3. **Computation Offloading:** Validates the core paradigm of offloading resource-heavy compute tasks (code compilation, Docker-in-Docker execution, penetration testing suites) from resource-constrained user devices to isolated server containers.
